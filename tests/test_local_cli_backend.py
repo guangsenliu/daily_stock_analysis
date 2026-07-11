@@ -911,6 +911,24 @@ def test_command_not_found(monkeypatch) -> None:
     assert exc_info.value.error_code is GenerationErrorCode.COMMAND_NOT_FOUND
 
 
+def test_resolve_local_cli_executable_prefers_windows_codex_sandbox_bin(monkeypatch) -> None:
+    windowsapps_codex = r"C:\Users\tester\AppData\Local\Microsoft\WindowsApps\codex.exe"
+    sandbox_codex = r"C:\Users\tester\.codex\.sandbox-bin\codex.exe"
+    monkeypatch.setattr("src.llm.local_cli_backend.shutil.which", lambda _cmd: windowsapps_codex)
+    monkeypatch.setattr(local_cli_backend_module, "_is_windows_platform", lambda: True)
+    monkeypatch.setattr(
+        local_cli_backend_module,
+        "_find_windows_codex_sandbox_executable",
+        lambda: sandbox_codex,
+    )
+
+    resolved = local_cli_backend_module.resolve_local_cli_executable(
+        local_cli_backend_module.CODEX_CLI_PRESET
+    )
+
+    assert resolved == sandbox_codex
+
+
 def test_shell_metachar_returns_unsafe_config() -> None:
     preset = LocalCliPreset("codex_cli", "mock", ("echo", "ok;rm"), "Mock CLI")
     backend = LocalCliGenerationBackend(_config(), preset=preset)

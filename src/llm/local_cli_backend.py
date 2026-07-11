@@ -305,6 +305,17 @@ SAFE_LOCAL_CLI_PRESETS = {
 }
 
 
+def resolve_local_cli_executable(preset: LocalCliPreset) -> Optional[str]:
+    """Resolve the executable path for a local CLI preset."""
+
+    resolved = shutil.which(preset.executable)
+    if _should_prefer_windows_codex_sandbox_executable(preset, resolved):
+        fallback = _find_windows_codex_sandbox_executable()
+        if fallback:
+            return fallback
+    return resolved
+
+
 def effective_local_cli_concurrency(config: Any) -> int:
     """Return the effective local CLI concurrency limit."""
 
@@ -1148,7 +1159,7 @@ class LocalCliGenerationBackend(GenerationBackend):
                 details={"reason": "shell_metachar", "token_preview": unsafe},
             )
 
-        resolved = shutil.which(self._preset.executable)
+        resolved = resolve_local_cli_executable(self._preset)
         if not resolved:
             raise self._error(
                 GenerationErrorCode.COMMAND_NOT_FOUND,
@@ -1494,6 +1505,44 @@ def _is_command_not_executable_error(exc: OSError) -> bool:
     if os.name == "nt" and getattr(exc, "winerror", None) == 193:
         return True
     return False
+
+
+def _is_windows_platform() -> bool:
+    return os.name == "nt"
+
+
+def _should_prefer_windows_codex_sandbox_executable(
+    preset: LocalCliPreset,
+    resolved: Optional[str],
+) -> bool:
+    if preset.preset_id != CODEX_CLI_BACKEND_ID or not resolved or not _is_windows_platform():
+        return False
+    return "windowsapps" in os.path.normcase(resolved)
+
+
+def _find_windows_codex_sandbox_executable() -> Optional[str]:
+    for candidate in _iter_windows_codex_sandbox_candidates():
+        candidate_str = str(candidate)
+        if os.path.isfile(candidate_str) and os.access(candidate_str, os.X_OK):
+            return candidate_str
+    return None
+
+
+def _iter_windows_codex_sandbox_candidates() -> Iterator[Path]:
+    seen: set[str] = set()
+    codex_home = (os.environ.get("CODEX_HOME") or "").strip()
+    if codex_home:
+        seen.add(os.path.normcase(codex_home))
+        yield Path(codex_home) / ".sandbox-bin" / "codex.exe"
+
+    home_dir = (os.environ.get("USERPROFILE") or os.environ.get("HOME") or "").strip()
+    if not home_dir:
+        home_dir = str(Path.home())
+    codex_dir = str(Path(home_dir) / ".codex")
+    normalized = os.path.normcase(codex_dir)
+    if normalized in seen:
+        return
+    yield Path(codex_dir) / ".sandbox-bin" / "codex.exe"
 
 
 def _is_sensitive_env_name(upper_name: str) -> bool:

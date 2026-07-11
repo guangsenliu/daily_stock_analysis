@@ -66,7 +66,7 @@ from src.llm.backend_registry import (
     normalize_backend_id,
 )
 from src.llm.generation_params import apply_litellm_generation_params
-from src.llm.local_cli_backend import resolve_local_cli_preset
+from src.llm.local_cli_backend import resolve_local_cli_executable, resolve_local_cli_preset
 from src.notification_contracts import (
     FEISHU_APP_BOT_ENV_GROUP,
     FEISHU_WEBHOOK_ENV_GROUP,
@@ -3459,7 +3459,7 @@ class SystemConfigService:
         )
         if generation_backend in LOCAL_CLI_GENERATION_BACKEND_IDS:
             preset = resolve_local_cli_preset(generation_backend)
-            if shutil.which(preset.executable):
+            if resolve_local_cli_executable(preset):
                 return self._setup_check(
                     "llm_primary",
                     "LLM 主渠道",

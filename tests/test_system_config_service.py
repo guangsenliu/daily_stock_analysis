@@ -1215,6 +1215,23 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertIn("Codex CLI 交互窗口", checks["llm_primary"]["next_step"])
         self.assertNotIn("请先安装并登录", checks["llm_primary"]["next_step"])
 
+    def test_get_setup_status_codex_cli_windowsapps_fallback_reports_configured(self) -> None:
+        self._rewrite_env(
+            "GENERATION_BACKEND=codex_cli",
+            "GENERATION_FALLBACK_BACKEND=",
+            "STOCK_LIST=600519",
+        )
+
+        with patch.dict(os.environ, {}, clear=True), \
+             patch(
+                 "src.services.system_config_service.resolve_local_cli_executable",
+                 return_value=r"C:\Users\tester\.codex\.sandbox-bin\codex.exe",
+             ):
+            status = self.service.get_setup_status()
+
+        checks = {check["key"]: check for check in status["checks"]}
+        self.assertEqual(checks["llm_primary"]["status"], "configured")
+
     def test_get_setup_status_codex_primary_agent_model_explains_litellm_split(self) -> None:
         self._rewrite_env(
             "GENERATION_BACKEND=codex_cli",
